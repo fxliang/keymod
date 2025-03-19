@@ -1,0 +1,76 @@
+name: CI
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '*'
+    tags:
+      - '![0-9]+.*'
+    paths:
+      - '**/**'
+      - '!*.md'
+      - '!.gitignore'
+  pull_request:
+
+jobs:
+
+  build:
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        arch: [x64, x86]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: xmake-io/github-action-setup-xmake@v1
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build keymod
+        id: build_keymod
+        run: |
+          xmake f -a ${{ matrix.arch }} && xmake
+
+      - name: Compress zip
+        run: |
+          .\makezip.ps1 -zipFileName keymod.${{ matrix.arch }}.zip
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: keymod.${{ matrix.arch }}
+          path: ./keymod.${{ matrix.arch }}.zip
+
+  create_release:
+    needs: build
+    runs-on: windows-2019
+    steps:
+      - name: Checkout last commit
+        uses: actions/checkout@v4
+
+      - name: Download x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: keymod.x64
+          path: ./artifacts
+
+      - name: Download x86 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: keymod.x86
+          path: ./artifacts
+
+      - name: Create Nightly release
+        if: ${{ github.repository == 'fxliang/keymod' && github.ref == 'refs/heads/master' }}
+        uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          automatic_release_tag: latest
+          prerelease: true
+          title: "Latest Build"
+          files: |
+            ./artifacts/keymod.x64.zip
+            ./artifacts/keymod.x86.zip

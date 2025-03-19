@@ -1,7 +1,10 @@
+#include "resource.h"
+#include "trayicon.h"
 #include <cctype>
 #include <csignal>
 #include <filesystem>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <windows.h>
 
@@ -17,6 +20,7 @@ namespace fs = std::filesystem;
 HHOOK hKeyboardHook = NULL;
 lua_State *L = nullptr;
 int process_key = 0;
+unique_ptr<TrayIcon> m_tray_icon;
 
 // ----------------------------------------------------------------------------
 // exported cfunctions
@@ -86,12 +90,16 @@ inline void PUSH_NIL_TABLE(lua_State *L, const char *name) {
   lua_pushnil(L);
   lua_settable(L, -3);
 }
-void cleanup(int signum) {
-  cout << "Ctrl+c captured, now to exit the program" << endl;
+inline void finalize_env() {
   if (hKeyboardHook)
     UnhookWindowsHookEx(hKeyboardHook);
+  if (L)
+    lua_close(L);
   CoUninitialize();
-  lua_close(L);
+}
+void cleanup(int signum) {
+  cout << "Ctrl+c captured, now to exit the program" << endl;
+  finalize_env();
   system("pause");
   exit(signum);
 }
@@ -107,8 +115,11 @@ void append_lua_package_path(lua_State *L, const char *name,
   lua_setfield(L, -3, name);
   lua_pop(L, 2);
 }
+
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
 #define skip() return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam)
+  if (!keymod_enabled)
+    skip();
   if (nCode == HC_ACTION) {
     KBDLLHOOKSTRUCT *kinfo = (KBDLLHOOKSTRUCT *)lParam;
     if (!kinfo->scanCode)
@@ -141,15 +152,13 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
 #undef skip
 }
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-                    LPWSTR lpCmdLine, int nCmdShow) {
-#ifdef _MSC_VER
-  AllocConsole();
-  freopen("CONOUT$", "w", stdout);
-#endif
+void init_lua_env() {
+  if (L)
+    lua_close(L);
   L = luaL_newstate();
   luaL_openlibs(L);
   append_lua_package_path(L, "path", get_exe_path() + "\\lua\\?.lua");
+  append_lua_package_path(L, "cpath", get_exe_path() + "\\lua\\?.dll");
 
 #define REG_FUNC(L, name) lua_register(L, #name, name)
   REG_FUNC(L, sendinput_keyevent);
@@ -163,8 +172,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     string msg = "error happened when luaL_dofile(\"keymod.lua\"): " +
                  string(lua_tostring(L, -1));
     OutputDebugStringA(msg.c_str());
-    lua_close(L);
-    return ret;
+    finalize_env();
+    exit(ret);
   }
 
   lua_getglobal(L, "LowLevelKeyboardProc");
@@ -172,27 +181,39 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     process_key = luaL_ref(L, LUA_REGISTRYINDEX);
   else {
     cout << "LowLevelKeyboardProc is not function in lua script, program exit!";
-    lua_pop(L, 1);
-    lua_close(L);
-    return 1;
+    finalize_env();
+    exit(1);
   }
+}
 
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+                    LPWSTR lpCmdLine, int nCmdShow) {
+#ifdef _MSC_VER
+  AllocConsole();
+  freopen("CONOUT$", "w", stdout);
+#endif
   CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
   hKeyboardHook =
       SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, NULL, 0);
   if (!hKeyboardHook) {
     cout << "Failed to install keyboard hook!" << endl;
-    lua_close(L);
+    finalize_env();
     return 1;
   }
   signal(SIGINT, cleanup);
+
+  init_lua_env();
+  m_tray_icon =
+      make_unique<TrayIcon>(hInstance, L"keymod - 右键菜单更多操作^_^");
+  m_tray_icon->reload_handler() = [&]() { init_lua_env(); };
+  m_tray_icon->Show();
+  m_tray_icon->Enable(keymod_enabled);
+
   MSG msg;
   while (GetMessage(&msg, NULL, 0, 0)) {
     TranslateMessage(&msg);
     DispatchMessage(&msg);
   }
-  UnhookWindowsHookEx(hKeyboardHook);
-  lua_close(L);
-  CoUninitialize();
+  finalize_env();
   return 0;
 }

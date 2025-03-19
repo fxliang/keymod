@@ -1,0 +1,5 @@
+src/keymod.rc
+compile_commands.json
+keymod.exe
+build
+.xmake

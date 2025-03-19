@@ -1,3 +1,3 @@
 #pragma once
 
-#define IDI_KEYMOD   100
+#define IDI_KEYMOD 100
