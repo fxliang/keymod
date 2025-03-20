@@ -69,27 +69,23 @@ int clear_screen(lua_State *L) {
 }
 
 // ----------------------------------------------------------------------------
-inline void PUSH_STRING_TABLE(lua_State *L, const char *data,
-                              const char *name) {
+template <typename T>
+inline void push_simpledata_to_table(lua_State *L, const T &data,
+                                     const char *name) {
   lua_pushstring(L, name);
-  lua_pushstring(L, data);
+  if constexpr (std::is_same_v<T, const char *>)
+    lua_pushstring(L, data);
+  else if constexpr (std::is_integral_v<T>)
+    lua_pushinteger(L, (lua_Number)data);
+  else if constexpr (std::is_floating_point_v<T>)
+    lua_pushnumber(L, (lua_Number)data);
+  else if constexpr (std::is_same_v<T, bool>)
+    lua_pushboolean(L, data);
+  else if constexpr (std::is_same_v<T, std::nullptr_t>)
+    lua_pushnil(L);
   lua_settable(L, -3);
 }
-inline void PUSH_INT_TABLE(lua_State *L, const int data, const char *name) {
-  lua_pushstring(L, name);
-  lua_pushinteger(L, data);
-  lua_settable(L, -3);
-}
-inline void PUSH_BOOL_TABLE(lua_State *L, const bool data, const char *name) {
-  lua_pushstring(L, name);
-  lua_pushboolean(L, data);
-  lua_settable(L, -3);
-}
-inline void PUSH_NIL_TABLE(lua_State *L, const char *name) {
-  lua_pushstring(L, name);
-  lua_pushnil(L);
-  lua_settable(L, -3);
-}
+
 inline void finalize_env() {
   if (hKeyboardHook)
     UnhookWindowsHookEx(hKeyboardHook);
@@ -129,11 +125,11 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (!lua_isnil(L, -1)) {
       lua_pushinteger(L, wParam);
       lua_newtable(L);
-      PUSH_INT_TABLE(L, kinfo->vkCode, "vkCode");
-      PUSH_INT_TABLE(L, kinfo->scanCode, "scanCode");
-      PUSH_INT_TABLE(L, kinfo->flags, "flags");
-      PUSH_INT_TABLE(L, kinfo->time, "time");
-      PUSH_INT_TABLE(L, kinfo->dwExtraInfo, "dwExtraInfo");
+      push_simpledata_to_table(L, kinfo->vkCode, "vkCode");
+      push_simpledata_to_table(L, kinfo->scanCode, "scanCode");
+      push_simpledata_to_table(L, kinfo->flags, "flags");
+      push_simpledata_to_table(L, kinfo->time, "time");
+      push_simpledata_to_table(L, kinfo->dwExtraInfo, "dwExtraInfo");
       auto st = lua_pcall(L, 2, 1, 0);
       if (st != LUA_OK) {
         string msg = "Error: " + std::string(lua_tostring(L, -1));
@@ -144,8 +140,6 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
       int ret = lua_toboolean(L, -1);
       if (ret)
         return ret;
-      else
-        skip();
     }
   }
   skip();
