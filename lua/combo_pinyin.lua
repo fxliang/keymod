@@ -139,6 +139,7 @@ local algebra_text = [[
   # ⟨de, te, ne, le, ge, ke, he⟩
   # 特別地，⟨me⟩ 對應常用字「麼·么」
   - xform/^([mdtnlgkh])$/$1e/
+  - xform/[A-Z]+$//
 ]]
 
 -- initial algebra
