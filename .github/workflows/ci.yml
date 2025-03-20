@@ -32,7 +32,7 @@ jobs:
       - name: Build keymod
         id: build_keymod
         run: |
-          xmake f -a ${{ matrix.arch }} && xmake
+          xmake f -a ${{ matrix.arch }} -y && xmake -y
 
       - name: Compress zip
         run: |
