@@ -56,6 +56,49 @@ int sendinput_keyevent(lua_State *L) {
   return 0;
 }
 
+inline wstring u8tow(const string &str, int code_page = CP_UTF8) {
+  // support CP_ACP and CP_UTF8 only
+  if (code_page != 0 && code_page != CP_UTF8)
+    return L"";
+  // calc len
+  int len =
+      MultiByteToWideChar(code_page, 0, str.c_str(), (int)str.size(), NULL, 0);
+  if (len <= 0)
+    return L"";
+  std::wstring res;
+  TCHAR *buffer = new TCHAR[len + 1];
+  MultiByteToWideChar(code_page, 0, str.c_str(), (int)str.size(), buffer, len);
+  buffer[len] = '\0';
+  res.append(buffer);
+  delete[] buffer;
+  return res;
+}
+
+int sendinput_str(lua_State *L) {
+  const char *str_c = lua_tostring(L, 1);
+  const string str(str_c);
+  const wstring text = u8tow(str);
+  std::wcout << text << endl;
+  std::vector<INPUT> inputs;
+  for (const auto &ch : text) {
+    INPUT input = {};
+    input.type = INPUT_KEYBOARD;
+    input.ki.wVk = 0;
+    input.ki.wScan = ch;
+    input.ki.dwFlags = KEYEVENTF_UNICODE;
+    input.ki.time = 0;
+    input.ki.dwExtraInfo = GetMessageExtraInfo();
+    inputs.push_back(input);
+    INPUT inputRelease = input;
+    inputRelease.ki.dwFlags |= KEYEVENTF_KEYUP;
+    inputs.push_back(inputRelease);
+  }
+  if (!inputs.empty()) {
+    SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
+  }
+  return 0;
+}
+
 int debugstr(lua_State *L) {
   const char *msg = lua_tostring(L, 1);
   OutputDebugStringA(msg);
@@ -159,6 +202,7 @@ void init_lua_env() {
   REG_FUNC(L, debugstr);
   REG_FUNC(L, is_caps_on);
   REG_FUNC(L, clear_screen);
+  REG_FUNC(L, sendinput_str);
 #undef REG_FUNC
 
   auto file_path = get_exe_path() + "\\lua\\keymod.lua";

@@ -7,6 +7,7 @@ require("combo_pinyin")
 --- is_caps_on() return if currently capslock is on
 --- debugstr(str) OutputDebugStringA with string
 --- clear_screen() clear screen like what the command 'cls' does
+--- sendinput_str(str) send string directly
 -------------------------------------------------------------------------------
 --- data param to LowLevelKeyboardProc
 --- wParam int
