@@ -23,6 +23,46 @@ int process_key = 0;
 unique_ptr<TrayIcon> m_tray_icon;
 
 // ----------------------------------------------------------------------------
+std::wstring string_to_wstring(const std::string &str, int code_page = CP_ACP) {
+  // support CP_ACP and CP_UTF8 only
+  if (code_page != 0 && code_page != CP_UTF8)
+    return L"";
+  // calc len
+  int len =
+      MultiByteToWideChar(code_page, 0, str.c_str(), (int)str.size(), NULL, 0);
+  if (len <= 0)
+    return L"";
+  std::wstring res;
+  TCHAR *buffer = new TCHAR[len + 1];
+  MultiByteToWideChar(code_page, 0, str.c_str(), (int)str.size(), buffer, len);
+  buffer[len] = '\0';
+  res.append(buffer);
+  delete[] buffer;
+  return res;
+}
+
+std::string wstring_to_string(const std::wstring &wstr,
+                              int code_page = CP_ACP) {
+  // support CP_ACP and CP_UTF8 only
+  if (code_page != 0 && code_page != CP_UTF8)
+    return "";
+  int len = WideCharToMultiByte(code_page, 0, wstr.c_str(), (int)wstr.size(),
+                                NULL, 0, NULL, NULL);
+  if (len <= 0)
+    return "";
+  std::string res;
+  char *buffer = new char[len + 1];
+  WideCharToMultiByte(code_page, 0, wstr.c_str(), (int)wstr.size(), buffer, len,
+                      NULL, NULL);
+  buffer[len] = '\0';
+  res.append(buffer);
+  delete[] buffer;
+  return res;
+}
+
+#define _u8toacp(x) wstring_to_string(string_to_wstring(x, CP_UTF8))
+#define _acptou8(x) wstring_to_string(string_to_wstring(x), CP_UTF8)
+// ----------------------------------------------------------------------------
 // exported cfunctions
 int is_caps_on(lua_State *L) {
   lua_pushboolean(L, (GetKeyState(VK_CAPITAL) & 0x0001) != 0);
@@ -110,7 +150,25 @@ int clear_screen(lua_State *L) {
   system("cls");
   return 0;
 }
+int u8toacp(lua_State *L) {
+  const char *str = lua_tostring(L, 1);
+  auto acp_string = _u8toacp(std::string(str));
+  lua_pushstring(L, acp_string.c_str());
+  return 1;
+}
 
+int acptou8(lua_State *L) {
+  const char *str = lua_tostring(L, 1);
+  auto u8string = _acptou8(std::string(str));
+  lua_pushstring(L, u8string.c_str());
+  return 1;
+}
+
+int set_console_enc(lua_State *L) {
+  int enc = lua_tointeger(L, 1);
+  SetConsoleOutputCP(enc);
+  return 0;
+}
 // ----------------------------------------------------------------------------
 template <typename T>
 inline void push_simpledata_to_table(lua_State *L, const T &data,
@@ -134,6 +192,7 @@ inline void finalize_env() {
     UnhookWindowsHookEx(hKeyboardHook);
   if (L)
     lua_close(L);
+  SetConsoleOutputCP(CP_ACP);
   CoUninitialize();
 }
 void cleanup(int signum) {
@@ -178,6 +237,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
         string msg = "Error: " + std::string(lua_tostring(L, -1));
         lua_pop(L, 1);
         OutputDebugStringA(msg.c_str());
+        printf("%s\n", msg.c_str());
         skip();
       }
       int ret = lua_toboolean(L, -1);
@@ -203,6 +263,9 @@ void init_lua_env() {
   REG_FUNC(L, is_caps_on);
   REG_FUNC(L, clear_screen);
   REG_FUNC(L, sendinput_str);
+  REG_FUNC(L, set_console_enc);
+  REG_FUNC(L, acptou8);
+  REG_FUNC(L, u8toacp);
 #undef REG_FUNC
 
   auto file_path = get_exe_path() + "\\lua\\keymod.lua";
@@ -210,6 +273,7 @@ void init_lua_env() {
     string msg = "error happened when luaL_dofile(\"keymod.lua\"): " +
                  string(lua_tostring(L, -1));
     OutputDebugStringA(msg.c_str());
+    printf("%s\n", msg.c_str());
     finalize_env();
     exit(ret);
   }
