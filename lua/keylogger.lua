@@ -76,11 +76,11 @@ end
 
 function keylogger_func(wParam, kinfo)
   keystates[kinfo.vkCode] = (wParam == WM_KEYDOWN or wParam == WM_SYSKEYDOWN)
-  local sta = keystates[kinfo.vkCode] and "keydown:" or "keyup:  "
+  local sta = keystates[kinfo.vkCode] and "↓: " or "↑: "
   local keyname = vk_to_name[kinfo.vkCode]
   if keyname ~= nil then
     local pid, name = getActiveWindowInfo()
-    print(sta, keyname, 'pid: '..pid, 'name: '..name)
+    print(sta .. keyname, 'pid: '..pid, 'name: '..name)
   end
   return false
 end
