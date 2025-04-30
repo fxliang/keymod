@@ -28,6 +28,8 @@ HANDLE OpenProcess(DWORD dwDesiredAccess, BOOL bInheritHandle, DWORD dwProcessId
 BOOL CloseHandle(HANDLE hObject);
 DWORD GetLastError(void);
 DWORD GetModuleFileNameExA(HANDLE hProcess, HINSTANCE hModule, char* lpFilename, DWORD nSize);
+int GetWindowTextA(HWND hWnd, char* lpString, int nMaxCount);
+int GetWindowTextLengthA(HWND hWnd);
 ]]
 
 -- 常量定义
@@ -52,6 +54,20 @@ local function getProcessPath(pid)
   return acptou8(ffi.string(buffer))
 end
 
+-- 获取窗口标题
+local function getWindowCaption(hwnd)
+  if hwnd == nil then return nil end
+  -- 先获取标题长度
+  local length = user32.GetWindowTextLengthA(hwnd)
+  if length == 0 then
+    return ""
+  end
+  -- 分配缓冲区并获取标题
+  local buffer = ffi.new("char[?]", length + 1)  -- +1 为 null 终止符
+  user32.GetWindowTextA(hwnd, buffer, length + 1)
+  return ffi.string(buffer)
+end
+
 -- 从路径中提取进程名
 local function extractProcessName(path)
   if not path then return "未知" end
@@ -66,12 +82,13 @@ local function getActiveWindowInfo()
     print('hwnd is nil, error code:', kernel32.GetLastError())
     return nil, nil
   end
+  local caption = getWindowCaption(hwnd)
   local pid = ffi.new("DWORD[1]")
   user32.GetWindowThreadProcessId(hwnd, pid)
   pid = tonumber(pid[0])
   local path = getProcessPath(pid)
   local name = extractProcessName(path)
-  return pid, name
+  return pid, name, caption
 end
 
 function keylogger_func(wParam, kinfo)
@@ -79,9 +96,14 @@ function keylogger_func(wParam, kinfo)
   local sta = keystates[kinfo.vkCode] and "↓: " or "↑: "
   local keyname = vk_to_name[kinfo.vkCode]
   if keyname ~= nil then
-    local pid, name = getActiveWindowInfo()
-    print(sta .. keyname, 'pid: '..pid, 'name: '..name)
+    local pid, name, caption = getActiveWindowInfo()
+    local function format_len(str, len)
+      return string.format("%-"..len.."s", str)
+    end
+    print(format_len(sta .. keyname, 15), format_len('pid: '..pid, 15),
+      'name: '..name, 'caption: ' .. acptou8(caption))
   end
   return false
 end
+clear_screen()
 print('keylogger.lua 加载成功 ^_^')
