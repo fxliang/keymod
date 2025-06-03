@@ -6,8 +6,10 @@
 #define MENU_QUIT 1002
 #define MENU_ENABLED 1003
 #define MENU_RELOAD 1004
+#define MENU_SHOW_CONSOLE 1005
 
 bool keymod_enabled = true;
+bool show_console = true;
 
 TrayIcon::TrayIcon(HINSTANCE hInstance, const std::wstring &tooltip)
     : hInst(hInstance), hMenu(NULL) {
@@ -70,7 +72,11 @@ void TrayIcon::CreateContextMenu() {
     AppendMenu(hMenu, MF_STRING, MENU_RELOAD, L"重新加载脚本");
     AppendMenu(hMenu, MF_STRING | (keymod_enabled ? MF_CHECKED : MFS_UNCHECKED),
                MENU_ENABLED, L"启用keymod");
+    AppendMenu(hMenu, MF_STRING, MENU_SHOW_CONSOLE,
+               !show_console ? L"隐藏控制台" : L"显示控制台");
     AppendMenu(hMenu, MF_STRING, MENU_QUIT, L"退出");
+    CheckMenuItem(hMenu, MENU_SHOW_CONSOLE,
+        show_console ? MF_CHECKED : MFS_UNCHECKED);
   }
 }
 
@@ -134,6 +140,19 @@ void TrayIcon::ProcessMessage(HWND hwnd, UINT msg, WPARAM wParam,
                       keymod_enabled ? MF_CHECKED : MF_UNCHECKED);
       Enable(keymod_enabled);
       InvalidateRect(hwnd, NULL, true);
+      break;
+    }
+    case MENU_SHOW_CONSOLE: {
+      show_console = !show_console;
+      if (hMenu)
+        CheckMenuItem(hMenu, MENU_SHOW_CONSOLE,
+                      show_console ? MF_CHECKED : MFS_UNCHECKED);
+      if (show_console) {
+        ShowWindow(GetConsoleWindow(), SW_SHOWNA);
+      } else {
+        ShowWindow(GetConsoleWindow(), SW_HIDE);
+      }
+      ShowBalloonTip(L"提示", show_console ? L"控制台已显示" : L"控制台已隐藏");
       break;
     }
     case MENU_RELOAD: {
