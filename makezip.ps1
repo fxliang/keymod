@@ -1,5 +1,5 @@
 param([string]$zipFileName = "keymod.zip")
-$itemsToArchive = @("lua", "keymod.exe", "LICENSE.txt", "README.md")
+$itemsToArchive = @("lua", "keymod.exe", "popup.dll","LICENSE.txt", "README.md")
 if (Test-Path $zipFileName) {
   Remove-Item $zipFileName
 }

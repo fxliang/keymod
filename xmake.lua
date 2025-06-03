@@ -3,21 +3,7 @@
 local luadist = is_plat('mingw') and 'lua' or 'luajit'
 add_requires(luadist)
 
-target('keymod')
-  set_kind('binary')
-  set_languages('c++17')
-  add_files('./src/*.cpp', "./src/keymod.rc")
-  add_packages(luadist)
-  add_defines('MAKE_LIB', 'UNICODE')
-  add_links('ole32', 'user32', 'shell32')
-
-  if is_plat('mingw') then
-    add_ldflags('-municode -static-libgcc -static-libstdc++ -static', {force=true})
-    add_cxflags("-O2")
-  elseif is_plat('windows') then
-    add_cxflags("/utf-8 /O2")
-  end
-
+rule('copy')
   after_build(function(target)
     -- try kill keymod if running
     try {
@@ -31,10 +17,30 @@ target('keymod')
     os.trycp(prjoutput, "$(projectdir)")
   end)
 
+rule('build_flags')
+  before_build(function(target)
+    if is_plat('mingw') then
+      target:add('ldflags', '-municode -static-libgcc -static-libstdc++ -static', {force=true})
+      target:add("cxflags", "-O2")
+    elseif is_plat('windows') then
+      target:add("cxflags", "/utf-8 /O2")
+    end
+  end)
+
+target('keymod')
+  set_kind('binary')
+  set_languages('c++17')
+  add_files('./src/main.cpp', "src/trayicon.cpp","./src/keymod.rc")
+  add_packages(luadist)
+
+  add_defines('MAKE_LIB', 'UNICODE', "_WIN32_WINNT=0x0603")
+  add_links( "user32", "gdi32", "shell32", "ole32")
+
+  add_rules('copy', 'build_flags')
+
   local version_major = "0"
   local version_minor = "0"
   local version_patch = "1"
-  local version = "\"" .. version_major .. "." .. version_minor .. "." .. version_patch .. "\""
 
   on_load(function(target)
     import("core.base.text")
@@ -66,3 +72,16 @@ target('keymod')
       generate_rc()
     end
   end)
+
+target('popup')
+  set_kind('shared')
+  set_languages('c++17')
+  add_files('./src/popup.cpp')
+  add_packages(luadist)
+
+  add_defines('MAKE_LIB', 'UNICODE', "_WIN32_WINNT=0x0603")
+  add_links( "user32", "shell32", "ole32", "gdi32")
+  set_filename("popup.dll")
+
+  add_rules('copy', 'build_flags')
+

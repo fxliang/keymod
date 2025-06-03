@@ -1,5 +1,6 @@
 #include "resource.h"
 #include "trayicon.h"
+#include "utils.h"
 #include <cctype>
 #include <csignal>
 #include <filesystem>
@@ -22,46 +23,6 @@ lua_State *L = nullptr;
 int process_key = 0;
 unique_ptr<TrayIcon> m_tray_icon;
 
-// ----------------------------------------------------------------------------
-std::wstring string_to_wstring(const std::string &str, int code_page = CP_ACP) {
-  // support CP_ACP and CP_UTF8 only
-  if (code_page != 0 && code_page != CP_UTF8)
-    return L"";
-  // calc len
-  int len =
-      MultiByteToWideChar(code_page, 0, str.c_str(), (int)str.size(), NULL, 0);
-  if (len <= 0)
-    return L"";
-  std::wstring res;
-  TCHAR *buffer = new TCHAR[len + 1];
-  MultiByteToWideChar(code_page, 0, str.c_str(), (int)str.size(), buffer, len);
-  buffer[len] = '\0';
-  res.append(buffer);
-  delete[] buffer;
-  return res;
-}
-
-std::string wstring_to_string(const std::wstring &wstr,
-                              int code_page = CP_ACP) {
-  // support CP_ACP and CP_UTF8 only
-  if (code_page != 0 && code_page != CP_UTF8)
-    return "";
-  int len = WideCharToMultiByte(code_page, 0, wstr.c_str(), (int)wstr.size(),
-                                NULL, 0, NULL, NULL);
-  if (len <= 0)
-    return "";
-  std::string res;
-  char *buffer = new char[len + 1];
-  WideCharToMultiByte(code_page, 0, wstr.c_str(), (int)wstr.size(), buffer, len,
-                      NULL, NULL);
-  buffer[len] = '\0';
-  res.append(buffer);
-  delete[] buffer;
-  return res;
-}
-
-#define _u8toacp(x) wstring_to_string(string_to_wstring(x, CP_UTF8))
-#define _acptou8(x) wstring_to_string(string_to_wstring(x), CP_UTF8)
 // ----------------------------------------------------------------------------
 // exported cfunctions
 int is_caps_on(lua_State *L) {
@@ -94,24 +55,6 @@ int sendinput_keyevent(lua_State *L) {
     input.ki.dwFlags = 0;
   SendInput(1, &input, sizeof(INPUT));
   return 0;
-}
-
-inline wstring u8tow(const string &str, int code_page = CP_UTF8) {
-  // support CP_ACP and CP_UTF8 only
-  if (code_page != 0 && code_page != CP_UTF8)
-    return L"";
-  // calc len
-  int len =
-      MultiByteToWideChar(code_page, 0, str.c_str(), (int)str.size(), NULL, 0);
-  if (len <= 0)
-    return L"";
-  std::wstring res;
-  TCHAR *buffer = new TCHAR[len + 1];
-  MultiByteToWideChar(code_page, 0, str.c_str(), (int)str.size(), buffer, len);
-  buffer[len] = '\0';
-  res.append(buffer);
-  delete[] buffer;
-  return res;
 }
 
 int sendinput_str(lua_State *L) {
@@ -150,6 +93,7 @@ int clear_screen(lua_State *L) {
   system("cls");
   return 0;
 }
+
 int u8toacp(lua_State *L) {
   const char *str = lua_tostring(L, 1);
   auto acp_string = _u8toacp(std::string(str));
@@ -169,6 +113,7 @@ int set_console_enc(lua_State *L) {
   SetConsoleOutputCP(enc);
   return 0;
 }
+
 // ----------------------------------------------------------------------------
 template <typename T>
 inline void push_simpledata_to_table(lua_State *L, const T &data,

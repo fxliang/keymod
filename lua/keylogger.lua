@@ -1,4 +1,5 @@
 require('base')
+local popup = require('popup').popup
 --- function bellow is luajit based!!!
 local ffi = require("ffi")
 local bit = require("bit")
@@ -91,6 +92,9 @@ local function getActiveWindowInfo()
   return pid, name, caption
 end
 
+local last_keyevent_time = 0
+local last_keyname = nil
+
 function keylogger_func(wParam, kinfo)
   keystates[kinfo.vkCode] = (wParam == WM_KEYDOWN or wParam == WM_SYSKEYDOWN)
   local sta = keystates[kinfo.vkCode] and "↓: " or "↑: "
@@ -100,6 +104,16 @@ function keylogger_func(wParam, kinfo)
     local function format_len(str, len)
       return string.format("%-"..len.."s", str)
     end
+    local pre = keystates[kinfo.vkCode] and "↓" or "↑"
+    local keyname_str = pre .. keyname
+    local current_time = os.time()
+    if current_time - last_keyevent_time < 1 then
+      keyname_str = last_keyname .. '\n' .. pre .. keyname
+    end
+    last_keyevent_time = current_time
+    last_keyname = keyname_str
+    popup(keyname_str, 1000, 15, -5) -- popup the key name for 2 seconds
+    -- bottom left of the monitor where mouse cursor is located
     print(format_len(sta .. keyname, 15), format_len('pid: '..pid, 15),
       'name: '..name, 'caption: ' .. acptou8(caption))
   end
