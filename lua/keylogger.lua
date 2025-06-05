@@ -112,8 +112,8 @@ function keylogger_func(wParam, kinfo)
     end
     last_keyevent_time = current_time
     last_keyname = keyname_str
-    popup(keyname_str, 1000, 15, -5) -- popup the key name for 2 seconds
-    -- bottom left of the monitor where mouse cursor is located
+    popup(keyname_str, 1000, 15, -5, 0xbf) -- popup the key name for 2 seconds
+    -- bottom left of the monitor where mouse cursor is located, and alpha level of popup window
     print(format_len(sta .. keyname, 15), format_len('pid: '..pid, 15),
       'name: '..name, 'caption: ' .. acptou8(caption))
   end

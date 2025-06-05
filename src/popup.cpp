@@ -9,9 +9,10 @@ extern "C" {
 std::unique_ptr<PopupWindow> popup_window = nullptr;
 
 void update_popup_window(const std::wstring &text, int showTimeMs, int xoffset,
-                         int yoffset) {
+                         int yoffset, unsigned char alpah = 0xaf) {
   if (!popup_window) {
     popup_window = std::make_unique<PopupWindow>(text, showTimeMs);
+    popup_window->m_alpha = alpah;
     if (!popup_window->Create()) {
       popup_window.reset();
       return;
@@ -36,15 +37,18 @@ int popup(lua_State *L) {
   int argCount = lua_gettop(L);
   const char *text = lua_tostring(L, 1);
   int showTimeMs = lua_tointeger(L, 2);
-  int x = 5, y = -5;
-  if (argCount == 4) {
+  int x = 5, y = -5, alpha = 0xaf;
+  if (argCount >= 4) {
     x = lua_tointeger(L, 3);
     y = lua_tointeger(L, 4);
+    if (argCount == 5) {
+      alpha = lua_tointeger(L, 5);
+    }
   } else if (argCount != 2) {
     luaL_error(L, "Usage: popup(text, showTimeMs[, x, y])");
     return 0; // never reached
   }
-  update_popup_window(u8tow(text), showTimeMs, x, y);
+  update_popup_window(u8tow(text), showTimeMs, x, y, alpha);
   return 0;
 }
 

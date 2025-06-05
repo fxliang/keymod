@@ -55,11 +55,23 @@ template <typename T> struct Window {
 class PopupWindow : public Window<PopupWindow> {
 public:
   PopupWindow(const std::wstring &text, int showTimeMs)
-      : m_text(text), m_showTime(showTimeMs) {}
+      : m_text(text), m_showTime(showTimeMs) {
+    m_hFont =
+        CreateFont(26, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                   OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+                   DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    if (!m_hFont) {
+      // 如果字体创建失败，使用默认字体
+      m_hFont = (HFONT)GetStockObject(SYSTEM_FONT);
+    }
+  }
   ~PopupWindow() {
     if (m_hWnd) {
       KillTimer(m_hWnd, TIMER_ID); // 清理定时器
       DestroyWindow(m_hWnd);
+    }
+    if (m_hFont) {
+      DeleteObject(m_hFont); // 清理字体
     }
   }
   bool Create() {
@@ -79,16 +91,17 @@ public:
       }
     }
     // 创建窗口
-    m_hWnd =
-        CreateWindowEx(WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-                       L"PopupWindowClass", L"Popup", WS_POPUP | WS_VISIBLE,
-                       CW_USEDEFAULT, CW_USEDEFAULT, 300, 100, nullptr, nullptr,
-                       GetModuleHandle(nullptr), this);
+    m_hWnd = CreateWindowEx(
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED,
+        L"PopupWindowClass", L"Popup", WS_POPUP | WS_VISIBLE, CW_USEDEFAULT,
+        CW_USEDEFAULT, 300, 100, nullptr, nullptr, GetModuleHandle(nullptr),
+        this);
     if (!m_hWnd)
       return false;
     PositionWindow(); // 设置窗口位置
     // 设置定时器，用于自动关闭
     SetTimer(m_hWnd, TIMER_ID, m_showTime, nullptr);
+    SetLayeredWindowAttributes(m_hWnd, 0, m_alpha, LWA_ALPHA); // 设置透明度
     return true;
   }
   void ResetTimer(int showTimeMs) {
@@ -135,6 +148,7 @@ public:
   }
   int m_xoffset = 0;  // 水平偏移量
   int m_yoffset = -5; // 垂直偏移量，默认向上偏移5个像素
+  int m_alpha = 0xaf; // 透明度，范围0-255
 protected:
   void OnPaint() override {
     if (m_text.empty()) {
@@ -150,11 +164,7 @@ protected:
     // 绘制文本
     SetBkMode(hdc, TRANSPARENT);
     // set font size and font name
-    HFONT hFont =
-        CreateFont(26, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-                   OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-                   DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+    HFONT hOldFont = (HFONT)SelectObject(hdc, m_hFont);
     // get text size
     SIZE textSize{0, 0};
     std::vector<std::wstring> lines = ws_split(m_text, L"\n");
@@ -178,6 +188,7 @@ protected:
                DT_LEFT | DT_VCENTER | DT_SINGLELINE);
       y += lineSizes.at(i).cy + 5;
     }
+    SelectObject(hdc, hOldFont);
     EndPaint(m_hWnd, &ps);
   }
   void OnTimer(UINT_PTR id) override {
@@ -189,6 +200,7 @@ protected:
   void OnDestroy() override { Hide(); }
 
 private:
+  HFONT m_hFont = nullptr; // 字体句柄
   std::wstring m_text;
   int m_showTime;
 };
