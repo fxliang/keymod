@@ -10,6 +10,7 @@
 
 bool keymod_enabled = true;
 bool show_console = true;
+extern void init_lua_env();
 
 TrayIcon::TrayIcon(HINSTANCE hInstance, const std::wstring &tooltip)
     : hInst(hInstance), hMenu(NULL) {
@@ -139,6 +140,9 @@ void TrayIcon::ProcessMessage(HWND hwnd, UINT msg, WPARAM wParam,
         CheckMenuItem(hMenu, MENU_ENABLED,
                       keymod_enabled ? MF_CHECKED : MF_UNCHECKED);
       Enable(keymod_enabled);
+      if (keymod_enabled) {
+        init_lua_env();
+      }
       InvalidateRect(hwnd, NULL, true);
       break;
     }
